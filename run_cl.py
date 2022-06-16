@@ -13,8 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Finetuning the library models for sequence classification on GLUE."""
-# You can also adapt this script on your own text classification task. Pointers for this are left as comments.
+""" Converted SimCSE to Huggingface code style + implemented SWAM support."""
 
 import logging
 import os
@@ -26,7 +25,7 @@ from huggingface_hub import update_repo_visibility
 import datasets
 import numpy as np
 from datasets import load_dataset, load_metric
-
+import importlib
 import transformers
 from transformers import (
     AutoConfig,
@@ -47,33 +46,9 @@ from transformers.utils.versions import require_version
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.20.0.dev0")
+check_min_version("4.19.0")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
-
-task_to_keys = {
-    "cola": ("sentence", None),
-    "mnli": ("premise", "hypothesis"),
-    "mrpc": ("sentence1", "sentence2"),
-    "qnli": ("question", "sentence"),
-    "qqp": ("question1", "question2"),
-    "rte": ("sentence1", "sentence2"),
-    "sst2": ("sentence", None),
-    "stsb": ("sentence1", "sentence2"),
-    "wnli": ("sentence1", "sentence2"),
-}
-
-task_to_metrics = {
-    "cola": "matthews_correlation",
-    "mnli": "accuracy",
-    "mrpc": "accuracy",
-    "qnli": "accuracy",
-    "qqp": "accuracy",
-    "rte": "accuracy",
-    "sst2": "accuracy",
-    "stsb": "spearmanr",
-    "wnli": "accuracy",
-}
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +62,6 @@ class DataTrainingArguments:
     into argparse arguments to be able to specify them on
     the command line.
     """
-
-    task_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
-    )
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
@@ -99,7 +69,7 @@ class DataTrainingArguments:
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
     max_seq_length: int = field(
-        default=128,
+        default=32,
         metadata={
             "help": (
                 "The maximum total input sequence length after tokenization. Sequences longer "
@@ -137,42 +107,23 @@ class DataTrainingArguments:
             )
         },
     )
-    max_predict_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "For debugging purposes or quicker training, truncate the number of prediction examples to this "
-                "value if set."
-            )
-        },
-    )
     train_file: Optional[str] = field(
-        default=None, metadata={"help": "A csv or a json file containing the training data."}
+        default=None, metadata={"help": "A txt, csv or json file containing the training data."}
     )
-    validation_file: Optional[str] = field(
-        default=None, metadata={"help": "A csv or a json file containing the validation data."}
+    # SimCSE
+    mlm_probability: float = field(
+        default=0.15, 
+        metadata={"help": "Ratio of tokens to mask for MLM (only effective if --do_mlm)"}
     )
-    test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
-    early_stopping_patience: Optional[int] = field(
-        default=3, metadata={"help": "Number of epochs to wait before early stopping."}
-    )
+
     def __post_init__(self):
-        if self.task_name is not None:
-            self.task_name = self.task_name.lower()
-            if self.task_name not in task_to_keys.keys():
-                raise ValueError("Unknown task, you should pick one in " + ",".join(task_to_keys.keys()))
-        elif self.dataset_name is not None:
+        if self.dataset_name is not None:
             pass
-        elif self.train_file is None or self.validation_file is None:
-            raise ValueError("Need either a GLUE task, a training/validation file or a dataset name.")
+        elif self.train_file is None:
+            raise ValueError("a training/validation file or a dataset name.")
         else:
             train_extension = self.train_file.split(".")[-1]
-            assert train_extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            validation_extension = self.validation_file.split(".")[-1]
-            assert (
-                validation_extension == train_extension
-            ), "`validation_file` should have the same extension (csv or json) as `train_file`."
-
+            assert train_extension in ["txt", "csv", "json"], "`train_file` should be a txt, csv or a json file."
 
 @dataclass
 class ModelArguments:
@@ -217,6 +168,66 @@ class ModelArguments:
     private: bool = field(
         default=False,
         metadata={"help": "Whether to create private repo on huggingface."},
+    )
+    
+    # SimCSE Arguments
+    temp: float = field(
+        default=0.05,
+        metadata={
+            "help": "Temperature for softmax."
+        }
+    )
+    pooler_type: str = field(
+        default="cls",
+        metadata={
+            "help": 
+            "What kind of pooler to use (cls, cls_before_pooler, avg, avg_top2, avg_first_last, swam)."
+        }
+    ) 
+    hard_negative_weight: float = field(
+        default=0,
+        metadata={
+            "help": "The **logit** of weight for hard negatives (only effective if hard negatives are used)."
+        }
+    )
+    do_mlm: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use MLM auxiliary objective."
+        }
+    )
+    mlm_weight: float = field(
+        default=0.1,
+        metadata={
+            "help": "Weight for MLM auxiliary objective (only effective if --do_mlm)."
+        }
+    )
+    mlp_only_train: bool = field(
+        default=False,
+        metadata={
+            "help": "Use MLP only during training"
+        }
+    )
+    # Arguments for Modularized SimCSE
+    model_class_name: str = field(
+        default="RobertaForCL",
+        metadata={"help": "Name of the model class to use."},
+    )
+    model_package_name: str = field(
+        default="modeling_roberta_cl",
+        metadata={"help": "Name of the model package to use."},
+    )
+    model_head_lr: float = field(
+        default=2e-4,
+        metadata={"help": "Learning rate for the model head."},
+    )
+    trainer_class_name: str = field(
+        default="CLTrainer",
+        metadata={"help": "Name of the trainer class to use."},
+    )
+    trainer_package_name: str = field(
+        default="CLTrainer",
+        metadata={"help": "Name of the trainer package to use."},
     )
 
 
@@ -284,15 +295,7 @@ def main():
     #
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
-    if data_args.task_name is not None:
-        # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(
-            "glue",
-            data_args.task_name,
-            cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
-    elif data_args.dataset_name is not None:
+    if data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
             data_args.dataset_name,
@@ -304,61 +307,33 @@ def main():
         # Loading a dataset from your local files.
         # CSV/JSON training and evaluation files are needed.
         data_files = {"train": data_args.train_file, "validation": data_args.validation_file}
+        extension_name = data_args.train_file.split(".")[-1]
+        extension_name = "text" if extension_name == "txt" else extension_name
 
         # Get the test dataset: you can provide your own CSV/JSON test file (see below)
         # when you use `do_predict` without specifying a GLUE benchmark task.
-        if training_args.do_predict:
-            if data_args.test_file is not None:
-                train_extension = data_args.train_file.split(".")[-1]
-                test_extension = data_args.test_file.split(".")[-1]
-                assert (
-                    test_extension == train_extension
-                ), "`test_file` should have the same extension (csv or json) as `train_file`."
-                data_files["test"] = data_args.test_file
-            else:
-                raise ValueError("Need either a GLUE task or a test file for `do_predict`.")
+        # if training_args.do_predict:
+        #     if data_args.test_file is not None:
+        #         train_extension = data_args.train_file.split(".")[-1]
+        #         test_extension = data_args.test_file.split(".")[-1]
+        #         assert (
+        #             test_extension == train_extension
+        #         ), "`test_file` should have the same extension (csv or json) as `train_file`."
+        #         data_files["test"] = data_args.test_file
+        #     else:
+        #         raise ValueError("Need either a GLUE task or a test file for `do_predict`.")
 
         for key in data_files.keys():
             logger.info(f"load a local file for {key}: {data_files[key]}")
 
-        if data_args.train_file.endswith(".csv"):
-            # Loading a dataset from local csv files
-            raw_datasets = load_dataset(
-                "csv",
-                data_files=data_files,
-                cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None,
-            )
-        else:
-            # Loading a dataset from local json files
-            raw_datasets = load_dataset(
-                "json",
-                data_files=data_files,
-                cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None,
-            )
+        raw_datasets = load_dataset(
+            extension_name,
+            data_files=data_files,
+            cache_dir=model_args.cache_dir,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
     # See more about loading any type of standard or custom dataset at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
-
-    # Labels
-    if data_args.task_name is not None:
-        is_regression = data_args.task_name == "stsb"
-        if not is_regression:
-            label_list = raw_datasets["train"].features["label"].names
-            num_labels = len(label_list)
-        else:
-            num_labels = 1
-    else:
-        # Trying to have good defaults here, don't hesitate to tweak to your needs.
-        is_regression = raw_datasets["train"].features["label"].dtype in ["float32", "float64"]
-        if is_regression:
-            num_labels = 1
-        else:
-            # A useful fast method:
-            # https://huggingface.co/docs/datasets/package_reference/main_classes.html#datasets.Dataset.unique
-            label_list = raw_datasets["train"].unique("label")
-            label_list.sort()  # Let's sort it for determinism
-            num_labels = len(label_list)
 
     # Load pretrained model and tokenizer
     #
@@ -366,20 +341,24 @@ def main():
     # download model & vocab.
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        num_labels=num_labels,
-        finetuning_task=data_args.task_name,
+        finetuning_task="continual contrastive learning",
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+         model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    model = AutoModelForSequenceClassification.from_pretrained(
+    model_class = getattr(
+        importlib.import_module(f"..{model_args.model_package_name}", package="models.subpkg"), 
+        model_args.model_class_name
+        )
+    model_init_kwargs = {"model_args": model_args}
+    model = model_class.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
@@ -387,55 +366,16 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
         ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
+        **model_init_kwargs,
     )
 
     # Preprocessing the raw_datasets
-    if data_args.task_name is not None:
-        sentence1_key, sentence2_key = task_to_keys[data_args.task_name]
-    else:
-        # Again, we try to have some nice defaults but don't hesitate to tweak to your use case.
-        non_label_column_names = [name for name in raw_datasets["train"].column_names if name != "label"]
-        if "sentence1" in non_label_column_names and "sentence2" in non_label_column_names:
-            sentence1_key, sentence2_key = "sentence1", "sentence2"
-        else:
-            if len(non_label_column_names) >= 2:
-                sentence1_key, sentence2_key = non_label_column_names[:2]
-            else:
-                sentence1_key, sentence2_key = non_label_column_names[0], None
-
     # Padding strategy
     if data_args.pad_to_max_length:
         padding = "max_length"
     else:
         # We will pad later, dynamically at batch creation, to the max sequence length in each batch
         padding = False
-
-    # Some models have set the order of the labels to use, so let's make sure we do use it.
-    label_to_id = None
-    if (
-        model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id
-        and data_args.task_name is not None
-        and not is_regression
-    ):
-        # Some have all caps in their config, some don't.
-        label_name_to_id = {k.lower(): v for k, v in model.config.label2id.items()}
-        if list(sorted(label_name_to_id.keys())) == list(sorted(label_list)):
-            label_to_id = {i: int(label_name_to_id[label_list[i]]) for i in range(num_labels)}
-        else:
-            logger.warning(
-                "Your model seems to have been trained with labels, but they don't match the dataset: ",
-                f"model labels: {list(sorted(label_name_to_id.keys()))}, dataset labels: {list(sorted(label_list))}."
-                "\nIgnoring the model labels as a result.",
-            )
-    elif data_args.task_name is None and not is_regression:
-        label_to_id = {v: i for i, v in enumerate(label_list)}
-
-    if label_to_id is not None:
-        model.config.label2id = label_to_id
-        model.config.id2label = {id: label for label, id in config.label2id.items()}
-    elif data_args.task_name is not None and not is_regression:
-        model.config.label2id = {l: i for i, l in enumerate(label_list)}
-        model.config.id2label = {id: label for label, id in config.label2id.items()}
 
     if data_args.max_seq_length > tokenizer.model_max_length:
         logger.warning(
@@ -446,20 +386,15 @@ def main():
 
     def preprocess_function(examples):
         # Tokenize the texts
-        args = (
-            (examples[sentence1_key],) if sentence2_key is None else (examples[sentence1_key], examples[sentence2_key])
-        )
+        args=None
         result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
-
-        # Map labels to IDs (not necessary for GLUE tasks)
-        if label_to_id is not None and "label" in examples:
-            result["label"] = [(label_to_id[l] if l != -1 else -1) for l in examples["label"]]
         return result
 
     with training_args.main_process_first(desc="dataset map pre-processing"):
         raw_datasets = raw_datasets.map(
             preprocess_function,
             batched=True,
+
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on dataset",
         )
@@ -523,7 +458,11 @@ def main():
         data_collator = None
     training_args.metric_for_best_model = task_to_metrics[data_args.task_name]
     # Initialize our Trainer
-    trainer = Trainer(
+    trainer_class = getattr(
+        importlib.import_module(f"..{model_args.trainer_package_name}", package="trainers.subpkg"),
+        model_args.trainer_class_name,
+        )
+    trainer = trainer_class(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
@@ -531,7 +470,6 @@ def main():
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=data_args.early_stopping_patience)],
     )
 
     # Training
