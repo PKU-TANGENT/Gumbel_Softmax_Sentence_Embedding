@@ -5,6 +5,8 @@ model_name_or_path="roberta-base"
 pooler_type="swam"
 output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}"
 hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
+
+# python -m debugpy --listen 127.0.0.1:5678 --wait-for-client train.py \
 python train.py \
     --model_name_or_path $model_name_or_path \
     --train_file data/wiki1m_for_simcse.txt \
