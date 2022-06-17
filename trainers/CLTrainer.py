@@ -125,13 +125,13 @@ class CLTrainer(Trainer):
             eval_senteval_transfer=eval_senteval_transfer,
         )
 
-        total_batch_size = self.args.eval_batch_size * self.args.world_size
+        # total_batch_size = self.args.eval_batch_size * self.args.world_size
         output.metrics.update(
             speed_metrics(
                 metric_key_prefix,
                 start_time,
                 num_samples=output.num_samples,
-                num_steps=math.ceil(output.num_samples / total_batch_size),
+                num_steps=None,
             )
         )
 
@@ -168,7 +168,7 @@ class CLTrainer(Trainer):
         args = self.args
 
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
-        prediction_ignore_loss = self.model.model_args.prediction_ignore_loss
+        # prediction_ignore_loss = self.model.model_args.prediction_ignore_loss
         # if eval is called w/o train init deepspeed here
         if args.deepspeed and not self.deepspeed:
 
@@ -204,7 +204,7 @@ class CLTrainer(Trainer):
             for k in batch:
                 batch[k] = batch[k].to(self.args.device)
             with torch.no_grad():
-                outputs = model(**batch, inference=True)
+                outputs = model(**batch, inference=True, output_hidden_states=True)
                 sentence_embeddings = outputs.hidden_states
             return sentence_embeddings.cpu()
 
@@ -215,7 +215,7 @@ class CLTrainer(Trainer):
 
         se = senteval.engine.SE(params, batcher, prepare)
         tasks = ['STSBenchmark', 'SICKRelatedness']
-        if eval_senteval_transfer or self.args.eval_transfer:
+        if eval_senteval_transfer or model.model_args.eval_transfer:
             tasks = ['STSBenchmark', 'SICKRelatedness', 'MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']
         model.eval()
         results = se.eval(tasks)
@@ -224,7 +224,7 @@ class CLTrainer(Trainer):
         sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
 
         metrics = {"eval_stsb_spearman": stsb_spearman, "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2} 
-        if eval_senteval_transfer or self.args.eval_transfer:
+        if eval_senteval_transfer or model.model_args.eval_transfer:
             avg_transfer = 0
             for task in ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']:
                 avg_transfer += results[task]['devacc']

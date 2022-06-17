@@ -31,7 +31,7 @@ class SimpleHead(nn.Module):
         self.dropout = nn.Dropout(classifier_dropout)
 
     def forward(self, features, **kwargs):
-        x = self.dropout(x)
+        x = self.dropout(features)
         x = torch.tanh(x)
         x = self.dense(x)      
         return x

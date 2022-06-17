@@ -5,6 +5,7 @@ model_name_or_path="roberta-base"
 pooler_type="swam"
 output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}"
 hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
+logging_steps=1
 
 # python train.py \
 python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
@@ -15,9 +16,12 @@ python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
     --learning_rate 3e-5 \
     --max_seq_length 32 \
     --evaluation_strategy steps \
+    --save_strategy steps \
+    --eval_steps $logging_steps \
+    --save_steps $logging_steps \
+    --logging_steps $logging_steps \
     --metric_for_best_model stsb_spearman \
     --load_best_model_at_end \
-    --eval_steps 1 \
     --pooler_type $pooler_type \
     --temp 0.05 \
     --do_train \

@@ -208,6 +208,12 @@ class ModelArguments:
             "help": "Use MLP only during training"
         }
     )
+    eval_transfer: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to evaluate the model on the transfer task during training."
+        }
+    )
     # Arguments for Modularized SimCSE
     model_class_name: str = field(
         default="SWAMRobertaForCL",

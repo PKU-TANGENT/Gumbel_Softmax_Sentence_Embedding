@@ -29,6 +29,12 @@ class SWAMRobertaForCL(RobertaPreTrainedModel):
         self,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.FloatTensor] = None,
+        input_ids_0: Optional[torch.LongTensor] = None,
+        attention_mask_0: Optional[torch.FloatTensor] = None,
+        input_ids_1: Optional[torch.LongTensor] = None,
+        attention_mask_1: Optional[torch.FloatTensor] = None,
+        input_ids_2: Optional[torch.LongTensor] = None,
+        attention_mask_2: Optional[torch.FloatTensor] = None,
         token_type_ids: Optional[torch.LongTensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.FloatTensor] = None,
@@ -39,7 +45,7 @@ class SWAMRobertaForCL(RobertaPreTrainedModel):
         return_dict: Optional[bool] = True,
         return_weights: Optional[bool] = None,
         inference: Optional[bool] = False,
-        **kwargs,
+        
     ) -> Union[Tuple[torch.Tensor], ContrastiveLearningOutput]:
         r"""
         test
@@ -49,11 +55,11 @@ class SWAMRobertaForCL(RobertaPreTrainedModel):
             `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        name_input_ids = sorted([x for x in kwargs if x.startswith("input_ids")])
-        input_ids = [kwargs.pop(x) for x in name_input_ids]
-        name_attention_mask = sorted([x for x in kwargs if x.startswith("attention_mask")])
-        attention_mask = [kwargs.pop(x) for x in name_attention_mask]
-        num_input_ids = len(name_input_ids)
+        potential_input_list = [input_ids, input_ids_0, input_ids_1, input_ids_2]
+        potential_attention_list = [attention_mask, attention_mask_0, attention_mask_1, attention_mask_2]
+        input_ids = [x for x in potential_input_list if x is not None]
+        attention_mask = [x for x in potential_attention_list if x is not None]
+        num_input_ids = len(input_ids)
         batch_size = input_ids[0].size(0)
         input_ids = input_ids * 2 if num_input_ids == 1 and not inference else input_ids
         input_ids = torch.concat(input_ids, dim=0)
