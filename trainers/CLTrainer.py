@@ -110,6 +110,7 @@ class CLTrainer(Trainer):
         ignore_keys: Optional[List[str]] = None,
         metric_key_prefix: str = "eval",
         eval_senteval_transfer: bool = False,
+        predict: bool = False
     ):
         self._memory_tracker.start()
         start_time = time.time()
@@ -123,6 +124,7 @@ class CLTrainer(Trainer):
             ignore_keys=ignore_keys,
             metric_key_prefix=metric_key_prefix,
             eval_senteval_transfer=eval_senteval_transfer,
+            predict=predict,
         )
 
         # total_batch_size = self.args.eval_batch_size * self.args.world_size
@@ -159,6 +161,7 @@ class CLTrainer(Trainer):
         ignore_keys = None,
         metric_key_prefix: str = "eval",
         eval_senteval_transfer: bool = False,
+        predict: bool = False
     ):
         """
         Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
@@ -209,29 +212,51 @@ class CLTrainer(Trainer):
             return sentence_embeddings.cpu()
 
         # Set params for SentEval (fastmode)
-        params = {'task_path': PATH_TO_DATA, 'usepytorch': True, 'kfold': 5}
-        params['classifier'] = {'nhid': 0, 'optim': 'rmsprop', 'batch_size': 128,
-                                            'tenacity': 3, 'epoch_size': 2}
+        params = {'task_path': PATH_TO_DATA, 'usepytorch': True, 'kfold': 5} if not predict else {'task_path': PATH_TO_DATA, 'usepytorch': True, 'kfold': 10}
+        params['classifier'] = {
+            'nhid': 0, 
+            'optim': 'rmsprop', 
+            'batch_size': 128,
+            'tenacity': 3, 
+            'epoch_size': 2
+        } if not predict else {
+            'nhid': 0, 
+            'optim': 'adam', 
+            'batch_size': 64,
+            'tenacity': 5,
+            'epoch_size': 4
+        }
 
         se = senteval.engine.SE(params, batcher, prepare)
-        tasks = ['STSBenchmark', 'SICKRelatedness']
+        dev_tasks = ['STSBenchmark', 'SICKRelatedness']
+        additional_test_tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16']
+        tasks = dev_tasks if not predict else  additional_test_tasks + dev_tasks 
+        transfer_tasks = ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']
         if eval_senteval_transfer or model.model_args.eval_transfer:
-            tasks = ['STSBenchmark', 'SICKRelatedness', 'MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']
+            tasks += transfer_tasks
         model.eval()
         results = se.eval(tasks)
-        
-        stsb_spearman = results['STSBenchmark']['dev']['spearman'][0]
-        sickr_spearman = results['SICKRelatedness']['dev']['spearman'][0]
-
-        metrics = {"eval_stsb_spearman": stsb_spearman, "eval_sickr_spearman": sickr_spearman, "eval_avg_sts": (stsb_spearman + sickr_spearman) / 2} 
-        if eval_senteval_transfer or model.model_args.eval_transfer:
-            avg_transfer = 0
-            for task in ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']:
-                avg_transfer += results[task]['devacc']
-                metrics['eval_{}'.format(task)] = results[task]['devacc']
-            avg_transfer /= 7
-            metrics['eval_avg_transfer'] = avg_transfer
-        # Do this before wrapping.
+        all_results = {}
+        if not predict:
+            for i in tasks:
+                if i in dev_tasks:
+                    all_results["eval_"+i.lower()+"_spearman"] = results[i]["dev"]["spearman"][0]
+                else:
+                    all_results["eval_"+i.lower()+"_acc"] = results[i]["devacc"]
+            all_results["eval_avg_sts"] = sum(all_results["eval_"+i.lower()+"_spearman"] for i in dev_tasks) / len(dev_tasks)
+            if eval_senteval_transfer or model.model_args.eval_transfer:
+                all_results["eval_avg_transfer"] = sum(all_results["eval_"+i.lower()+"_acc"] for i in transfer_tasks) / len(transfer_tasks)
+        else:
+            for i in tasks:
+                if i in dev_tasks:
+                    all_results["test_"+i.lower()+"_spearman"] = results[i]["test"]["spearman"][0]
+                elif i in additional_test_tasks:
+                    all_results["test_"+i.lower()+"_spearman"] = results[i]["all"]["spearman"]["all"]
+                else:
+                    all_results["test_"+i.lower()+"_acc"] = results[i]["acc"]
+            all_results["test_avg_sts"] = sum(all_results["test_"+i.lower()+"_spearman"] for i in dev_tasks + additional_test_tasks) / len(dev_tasks + additional_test_tasks)
+            if eval_senteval_transfer or model.model_args.eval_transfer:
+                all_results["test_avg_transfer"] = sum(all_results["test_"+i.lower()+"_acc"] for i in transfer_tasks) / len(transfer_tasks)
 
         if args.past_index >= 0:
             self._past = None
@@ -246,7 +271,7 @@ class CLTrainer(Trainer):
         # Will be useful when we have an iterable dataset so don't know its length.
 
         # To be JSON-serializable, we need to remove numpy types or zero-d tensors
-        metrics = denumpify_detensorize(metrics)
+        metrics = denumpify_detensorize(all_results)
 
         if all_losses is not None:
             metrics[f"{metric_key_prefix}_loss"] = all_losses.mean().item()

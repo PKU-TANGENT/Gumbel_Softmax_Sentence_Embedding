@@ -301,6 +301,7 @@ def main():
     #
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
+    raw_datasets = None
     if data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -309,7 +310,7 @@ def main():
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
-    else:
+    elif training_args.do_train:
         # Loading a dataset from your local files.
         # CSV/JSON training and evaluation files are needed.
         data_files = {"train": data_args.train_file}
@@ -338,6 +339,7 @@ def main():
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
+    column_names = raw_datasets["train"].column_names if raw_datasets is not None else None
     # See more about loading any type of standard or custom dataset at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -377,8 +379,7 @@ def main():
 
     # Preprocessing the raw_datasets
     # Padding strategy
-    column_names = raw_datasets["train"].column_names
-    model.model_args.column_names = column_names
+    
     if data_args.pad_to_max_length:
         padding = "max_length"
     else:
@@ -402,15 +403,15 @@ def main():
                 result_dict[k+"_"+str(i)] = v
 
         return result_dict
-
-    with training_args.main_process_first(desc="dataset map pre-processing"):
-        raw_datasets = raw_datasets.map(
-            preprocess_function,
-            batched=True,
-            remove_columns=column_names,
-            load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on dataset",
-        )
+    if training_args.do_train:
+        with training_args.main_process_first(desc="dataset map pre-processing"):
+            raw_datasets = raw_datasets.map(
+                preprocess_function,
+                batched=True,
+                remove_columns=column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on dataset",
+            )
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
@@ -473,6 +474,11 @@ def main():
         metrics = trainer.evaluate(eval_senteval_transfer=True)
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+        metrics = trainer.evaluate(eval_senteval_transfer=model_args.eval_transfer, metric_key_prefix="test", predict=True)
+        trainer.log_metrics("test", metrics)
+        trainer.save_metrics("test", metrics)
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "sentence-similarity"}
     # if data_args.task_name is not None:
     kwargs["language"] = "en"
