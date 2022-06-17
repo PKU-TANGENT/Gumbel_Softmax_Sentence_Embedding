@@ -473,12 +473,12 @@ def main():
         metrics = trainer.evaluate(eval_senteval_transfer=True)
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
-    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "text-classification"}
-    if data_args.task_name is not None:
-        kwargs["language"] = "en"
-        kwargs["dataset_tags"] = "glue"
-        kwargs["dataset_args"] = data_args.task_name
-        kwargs["dataset"] = f"GLUE {data_args.task_name.upper()}"
+    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "sentence-similarity"}
+    # if data_args.task_name is not None:
+    kwargs["language"] = "en"
+    # kwargs["dataset_tags"] = "glue"
+    # kwargs["dataset_args"] = data_args.task_name
+    # kwargs["dataset"] = f"GLUE {data_args.task_name.upper()}"
 
     if training_args.push_to_hub:
         trainer.push_to_hub(**kwargs)

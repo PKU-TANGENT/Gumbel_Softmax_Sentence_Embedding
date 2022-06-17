@@ -1,5 +1,6 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=7
+export TOKENIZERS_PARALLELISM=false
 contrastive_learning_style="unsup"
 model_name_or_path="roberta-base"
 pooler_type="swam"
@@ -30,7 +31,7 @@ python train.py \
     --gradient_accumulation_steps 1 \
     --warmup_ratio 0.06 \
     --weight_decay 0.1 \
-    --save_total_limit 0 \
+    --save_total_limit 1 \
     --output_dir $output_dir \
     --hub_model_id $hub_model_id \
     --push_to_hub \
