@@ -7,6 +7,7 @@ pooler_type="swam"
 output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}-freeze-backbone"
 hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}-freeze-backbone"
 logging_steps=200
+trainer_class_name="STSTrainer"
 
 # python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
 python train.py \
@@ -40,3 +41,6 @@ python train.py \
     --push_to_hub \
     --freeze_backbone \
     --mlp_only_train \
+    --trainer_class_name $trainer_class_name \
+    --trainer_package_name $trainer_class_name \
+
