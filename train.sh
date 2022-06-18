@@ -8,7 +8,7 @@ output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}-new"
 hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}-new"
 logging_steps=20
 
-# python -m debugpy --listen 127.0.0.1:5678 --wait-for-client train.py \
+# python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
 python train.py \
     --model_name_or_path $model_name_or_path \
     --train_file data/wiki1m_for_simcse.txt \
@@ -25,7 +25,6 @@ python train.py \
     --load_best_model_at_end \
     --pooler_type $pooler_type \
     --temp 0.05 \
-    --do_train \
     --do_eval \
     --do_predict \
     --fp16 \
@@ -35,7 +34,8 @@ python train.py \
     --save_total_limit 1 \
     --output_dir $output_dir \
     --hub_model_id $hub_model_id \
-    --push_to_hub \
     --load_best_model_at_end \
     --greater_is_better True \
-    --private
+    --private \
+    --do_train \
+    --push_to_hub \

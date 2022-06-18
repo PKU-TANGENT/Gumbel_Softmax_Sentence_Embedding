@@ -1,5 +1,6 @@
 import sys
 import math
+import copy
 # Set path to SentEval
 PATH_TO_SENTEVAL = './SentEval'
 PATH_TO_DATA = './SentEval/data'
@@ -230,7 +231,7 @@ class CLTrainer(Trainer):
         se = senteval.engine.SE(params, batcher, prepare)
         dev_tasks = ['STSBenchmark', 'SICKRelatedness']
         additional_test_tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16']
-        tasks = dev_tasks if not predict else  additional_test_tasks + dev_tasks 
+        tasks = copy.deepcopy(dev_tasks) if not predict else  copy.deepcopy(additional_test_tasks + dev_tasks) 
         transfer_tasks = ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']
         if eval_senteval_transfer or model.model_args.eval_transfer:
             tasks += transfer_tasks
@@ -239,7 +240,7 @@ class CLTrainer(Trainer):
         all_results = {}
         if not predict:
             for i in tasks:
-                if i in dev_tasks:
+                if i in dev_tasks and i not in transfer_tasks:
                     all_results["eval_"+i.lower()+"_spearman"] = results[i]["dev"]["spearman"][0]
                 else:
                     all_results["eval_"+i.lower()+"_acc"] = results[i]["devacc"]
