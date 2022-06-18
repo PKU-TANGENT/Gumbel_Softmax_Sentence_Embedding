@@ -4,8 +4,9 @@ export TOKENIZERS_PARALLELISM=false
 contrastive_learning_style="unsup"
 model_name_or_path="roberta-base"
 pooler_type="swam"
-output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}-freeze-backbone"
-hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}-freeze-backbone"
+suffix="-freeze-backbone"
+output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}${suffix}"
+hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}${suffix}"
 logging_steps=200
 trainer_class_name="STSTrainer"
 
@@ -43,4 +44,3 @@ python train.py \
     --mlp_only_train \
     --trainer_class_name $trainer_class_name \
     --trainer_package_name $trainer_class_name \
-

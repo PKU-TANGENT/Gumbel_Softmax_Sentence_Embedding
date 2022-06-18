@@ -213,14 +213,9 @@ class STSTrainer(Trainer):
             return sentence_embeddings.cpu()
 
         # Set params for SentEval (fastmode)
-        params = {'task_path': PATH_TO_DATA, 'usepytorch': True, 'kfold': 10}
-        params['classifier'] = {
-            'nhid': 0, 
-            'optim': 'adam', 
-            'batch_size': 64,
-            'tenacity': 5,
-            'epoch_size': 4
-        }
+        params = {'task_path': PATH_TO_DATA, 'usepytorch': True, 'kfold': 5}
+        params['classifier'] = {'nhid': 0, 'optim': 'rmsprop', 'batch_size': 128,
+                                         'tenacity': 3, 'epoch_size': 2}
 
         se = senteval.engine.SE(params, batcher, prepare)
         sts_tasks = ['STSBenchmark', 'SICKRelatedness','STS12', 'STS13', 'STS14', 'STS15', 'STS16']
