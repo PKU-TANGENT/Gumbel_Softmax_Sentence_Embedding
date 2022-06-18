@@ -11,15 +11,18 @@ from torch.nn import (
     MSELoss,
 )
 from .modeling_outputs import ContrastiveLearningOutput, SWAMOutput
-from .SWAM import SWAM, SimpleHead
+from .SWAM import SWAM, SimpleHead, SWAMTest
 from .model_utils import CosSimilarityWithTemp, Pooler
 class SWAMRobertaForCL(RobertaPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"position_ids"]
-    def __init__(self, config, *model_args, **model_kwargs):
+    def __init__(self, config, **model_kwargs):
         super().__init__(config)
         self.config = config
         self.model_args = model_kwargs.pop("model_args", None)
         self.roberta = RobertaModel(config, add_pooling_layer=False)
+        if self.model_args.freeze_backbone:
+            for param in self.roberta.parameters():
+                param.requires_grad = False
         self.swam = SWAM(config)
         self.similarity = CosSimilarityWithTemp(self.model_args.temp)
         self.simple_head = SimpleHead(config)
@@ -99,6 +102,14 @@ class SWAMRobertaForCL(RobertaPreTrainedModel):
             attentions=outputs.attentions if output_attentions else None,
             swam_weights=weights if return_weights else None,
         )
+class SWAMTestRobertaForCL(SWAMRobertaForCL):
+    _keys_to_ignore_on_load_missing = [r"position_ids"]
+    def __init__(self, config, **model_kwargs):
+        super().__init__(config, **model_kwargs)
+        self.swam = SWAMTest(config)
+        # Initialize weights and apply final processing
+        self.post_init()
+
 class RobertaForCL(RobertaPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"position_ids"]
     def __init__(self, config, *model_args, **model_kwargs):
