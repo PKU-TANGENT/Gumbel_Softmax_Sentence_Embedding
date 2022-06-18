@@ -235,6 +235,10 @@ class ModelArguments:
         default="CLTrainer",
         metadata={"help": "Name of the trainer package to use."},
     )
+    freeze_backbone: bool = field(
+        default=False,
+        metadata={"help": "Whether to freeze the PLM backbone."},
+    )
 
 
 def main():
