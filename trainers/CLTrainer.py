@@ -220,12 +220,6 @@ class CLTrainer(Trainer):
             'batch_size': 128,
             'tenacity': 3, 
             'epoch_size': 2
-        } if not predict else {
-            'nhid': 0, 
-            'optim': 'adam', 
-            'batch_size': 64,
-            'tenacity': 5,
-            'epoch_size': 4
         }
 
         se = senteval.engine.SE(params, batcher, prepare)

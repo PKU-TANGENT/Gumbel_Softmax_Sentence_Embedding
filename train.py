@@ -43,6 +43,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
+from trainers.CustomTrainingArgument import CustomTrainingArgument
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -214,6 +215,12 @@ class ModelArguments:
             "help": "Whether to evaluate the model on the transfer task during training."
         }
     )
+    ignore_transfer_test: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to skip transfer tasks at test."
+        }    
+    )
     # Arguments for Modularized SimCSE
     model_class_name: str = field(
         default="SWAMRobertaForCL",
@@ -224,15 +231,15 @@ class ModelArguments:
         metadata={"help": "Name of the model package to use."},
     )
     model_head_lr: float = field(
-        default=2e-4,
+        default=2e-5,
         metadata={"help": "Learning rate for the model head."},
     )
     trainer_class_name: str = field(
-        default="CLTrainer",
+        default="STSTrainer",
         metadata={"help": "Name of the trainer class to use."},
     )
     trainer_package_name: str = field(
-        default="CLTrainer",
+        default="STSTrainer",
         metadata={"help": "Name of the trainer package to use."},
     )
     freeze_backbone: bool = field(
@@ -246,7 +253,7 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, CustomTrainingArgument))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.

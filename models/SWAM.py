@@ -19,17 +19,6 @@ class SWAM(nn.Module):
         swam_outputs = last_hidden_state * weights.unsqueeze(2)
         swam_outputs = torch.sum(swam_outputs, dim=1)
         return (swam_outputs, weights)
-class SWAMTest(SWAM):
-    def forward(self, word_embeddings, last_hidden_state, attention_masks):
-        batch, seq_len, _ = last_hidden_state.shape
-        weights = self.embedding_transform(word_embeddings) + self.last_hidden_transform(last_hidden_state)
-        weights = self.activation(weights)
-        weights = weights.view(batch, seq_len) 
-        weights = weights * (attention_masks==1).clone().detach()
-        # weights = self.get_prob(weights)# get probs along seq_len dimension
-        swam_outputs = last_hidden_state * weights.unsqueeze(2)
-        swam_outputs = torch.sum(swam_outputs, dim=1)
-        return (swam_outputs, weights)
 
 class SimpleHead(nn.Module):
     """Head for training."""
@@ -44,6 +33,6 @@ class SimpleHead(nn.Module):
 
     def forward(self, features, **kwargs):
         x = self.dropout(features)
-        x = torch.tanh(x)
-        x = self.dense(x)      
+        x = self.dense(x) 
+        x = torch.tanh(x)     
         return x

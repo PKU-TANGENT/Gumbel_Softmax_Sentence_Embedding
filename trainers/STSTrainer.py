@@ -218,10 +218,12 @@ class STSTrainer(Trainer):
                                          'tenacity': 3, 'epoch_size': 2}
 
         se = senteval.engine.SE(params, batcher, prepare)
-        sts_tasks = ['STSBenchmark', 'SICKRelatedness','STS12', 'STS13', 'STS14', 'STS15', 'STS16']
-        tasks = copy.deepcopy(sts_tasks) 
+        sts_dev_tasks = ['STSBenchmark']
+        sts_tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'SICKRelatedness']
+        sts_combine = sts_dev_tasks + sts_tasks
+        tasks = copy.deepcopy(sts_combine) 
         transfer_tasks = ['MR', 'CR', 'SUBJ', 'MPQA', 'SST2', 'TREC', 'MRPC']
-        if eval_senteval_transfer or model.model_args.eval_transfer:
+        if (eval_senteval_transfer or model.model_args.eval_transfer) and not model.model_args.ignore_transfer_test:
             tasks += transfer_tasks
         model.eval()
         results = se.eval(tasks)
@@ -229,10 +231,18 @@ class STSTrainer(Trainer):
         for i in tasks:
             if i in sts_tasks:
                 all_results[i.lower()+"_spearman"] = results[i]["all"]["spearman"]["all"]
+            elif i in sts_dev_tasks:
+                all_results[i.lower()+"_spearman"] = results[i]["all"]["spearman"]["all"]
+                all_results[i.lower()+"_train_and_dev_spearman"] = results[i]["train_and_dev"]["spearman"]["all"]
+                all_results[i.lower()+"_test_spearman"] = results[i]["test"]["spearman"][0]
             elif i in transfer_tasks:
                 all_results[i.lower()+"_acc"] = results[i]["acc"]
-        all_results["avg_sts"] = sum(all_results[i.lower()+"_spearman"] for i in sts_tasks) / len(sts_tasks)
-        if eval_senteval_transfer or model.model_args.eval_transfer:
+        all_results["avg_sts"] = sum(all_results[i.lower()+"_spearman"] for i in sts_combine) / len(sts_combine)
+        all_results["avg_train_and_dev"] = sum(all_results[i.lower()+"_train_and_dev_spearman"] for i in sts_dev_tasks) / len(sts_dev_tasks)
+        tmp_test_result = sum(all_results[i.lower()+"_spearman"] for i in sts_tasks)
+        tmp_test_result += sum(all_results[i.lower()+"_test_spearman"] for i in sts_dev_tasks)
+        all_results["avg_test"] = tmp_test_result / len(sts_combine)
+        if (eval_senteval_transfer or model.model_args.eval_transfer) and not model.model_args.ignore_transfer_test:
             all_results["avg_transfer"] = sum(all_results[i.lower()+"_acc"] for i in transfer_tasks) / len(transfer_tasks)
 
         if args.past_index >= 0:

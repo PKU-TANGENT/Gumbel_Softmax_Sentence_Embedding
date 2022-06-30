@@ -1,5 +1,6 @@
 __pycache__
 data/*
 SentEval/*
+!SentEval/senteval/sts.py
 wandb
 checkpoint
