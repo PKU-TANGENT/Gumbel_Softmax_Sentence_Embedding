@@ -3,7 +3,8 @@ export CUDA_VISIBLE_DEVICES=7
 export TOKENIZERS_PARALLELISM=false
 contrastive_learning_style="unsup"
 model_name_or_path="roberta-base"
-pooler_type="swam"
+# pooler_type="swam"
+pooler_type="avg"
 output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}"
 hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 logging_steps=20
@@ -36,6 +37,6 @@ python train.py \
     --hub_model_id $hub_model_id \
     --load_best_model_at_end \
     --greater_is_better True \
-    --private \
     --do_train \
-    --push_to_hub \
+    --private \
+    # --push_to_hub \
