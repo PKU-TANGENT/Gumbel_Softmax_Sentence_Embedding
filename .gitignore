@@ -161,12 +161,8 @@ cython_debug/
 .idea/
 
 # Customized items
-checkpoints/
-hydra_outputs/
 .vscode/
-__pycache__
-data/*
-SentEval/*
-!SentEval/senteval/sts.py
+SentEval
+# SentEval/data/downstream/*
+# !SentEval/data/downstream/download_dataset.sh
 wandb
-checkpoint

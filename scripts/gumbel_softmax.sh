@@ -2,6 +2,7 @@
 export CUDA_VISIBLE_DEVICES=7
 contrastive_learning_style="unsup"
 model_name_or_path="roberta-base"
+# currently only support `bert uncased` and `roberta` style model
 # export CUDA_VISIBLE_DEVICES=$1
 # contrastive_learning_style=$2
 # model_name_or_path=$3
@@ -10,8 +11,15 @@ if [[ "${contrastive_learning_style}" == "unsup" ]]; then
 else
     train_file="JeremiahZ/simcse_sup_nli"
 fi
+# make sure that the model is named as "bert-..." or "roberta-..."
 IFS="-" read -r -a name_parser <<< "$model_name_or_path"
 model_architecture="${name_parser[0]}"
+# proxy_model must have the same tokenizer system as the base model
+if [[ "${model_architecture}" == "roberta" ]]; then
+    proxy_model=distilroberta-base
+else
+    proxy_model=distilbert-base-uncased
+fi
 if [[ "${contrastive_learning_style}" == "unsup" ]]; then
     if [[ "${model_architecture}" == "roberta" ]]; then
         learning_rate=1e-5
@@ -30,9 +38,8 @@ pooler_type="avg"
 output_dir="checkpoint/reproduce/${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 hub_model_id="reproduce-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 export WANDB_PROJECT=$model_name_or_path
-export WANDB_DISABLED=true
-# python train.py \
-python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
+# python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
+python train.py \
     --model_name_or_path $model_name_or_path \
     --train_file $train_file \
     --num_train_epochs 3 \

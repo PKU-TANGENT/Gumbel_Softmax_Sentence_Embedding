@@ -1,4 +1,22 @@
+import torch
 import torch.nn as nn
+class SimpleHead(nn.Module):
+    """Head for training."""
+
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        classifier_dropout = (
+            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+
+    def forward(self, features, **kwargs):
+        x = self.dropout(features)
+        x = self.dense(x) 
+        x = torch.tanh(x)     
+        return x
+
 class CosSimilarityWithTemp(nn.Module):
     """
     Cosine similarity with temperature
@@ -25,14 +43,17 @@ class Pooler(nn.Module):
         self.pooler_type = pooler_type
         assert self.pooler_type in ["cls", "cls_before_pooler", "avg", "avg_top2", "avg_first_last"], "unrecognized pooling type %s" % self.pooler_type
 
-    def forward(self, attention_mask, outputs):
+    def forward(self, attention_mask, outputs, proxy_outputs=None):
         last_hidden = outputs.last_hidden_state
         hidden_states = outputs.hidden_states
 
         if self.pooler_type in ['cls_before_pooler', 'cls']:
             return last_hidden[:, 0]
-        elif self.pooler_type == "avg":
+        elif self.pooler_type == "avg" and proxy_outputs is None:
             return ((last_hidden * attention_mask.unsqueeze(-1)).sum(1) / attention_mask.sum(-1).unsqueeze(-1))
+        elif self.pooler_type == "avg" and proxy_outputs is not None:
+            # eps = 1e-10
+            return ((last_hidden * attention_mask.unsqueeze(-1) * proxy_outputs.unsqueeze(-1)).sum(1) / (attention_mask * proxy_outputs).sum(-1).unsqueeze(-1))
         elif self.pooler_type == "avg_first_last":
             first_hidden = hidden_states[0]
             last_hidden = hidden_states[-1]

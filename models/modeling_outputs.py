@@ -9,11 +9,8 @@ class ContrastiveLearningOutput(ModelOutput):
     logits: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
-
 @dataclass
-class SWAMOutput(ModelOutput):
-    loss: Optional[torch.FloatTensor] = None
+class ProxyOutput(ModelOutput):
     logits: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
-    swam_weights: Optional[Tuple[torch.FloatTensor]] = None

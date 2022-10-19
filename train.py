@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Converted SimCSE to Huggingface code style + implemented SWAM support."""
+""" Converted SimCSE to Huggingface code style. Implemented Gumbel-Softmax based discrete optimization."""
 
 import logging
 import os
@@ -47,9 +47,9 @@ from trainers.CustomTrainingArgument import CustomTrainingArgument
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.19.0")
+check_min_version("4.22.0")
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
+require_version("datasets>=1.8.0", "To fix: pip install -r requirements.txt")
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class DataTrainingArguments:
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
     max_seq_length: int = field(
-        default=32,
+        default=128,
         metadata={
             "help": (
                 "The maximum total input sequence length after tokenization. Sequences longer "
@@ -135,11 +135,17 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
+    proxy_model_name_or_path: str = field(
+        metadata={"help": "For proxy model, path to pretrained model or model identifier from huggingface.co/models"}
+    )
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
+    proxy_config_name: Optional[str] = field(
+        default=None, metadata={"help": "For proxy model, pretrained config name or path if not the same as model_name"}
+    )
     tokenizer_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
+        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name. Note that proxy model and backbone model must use the same tokenizer."}
     )
     cache_dir: Optional[str] = field(
         default=None,
@@ -179,10 +185,10 @@ class ModelArguments:
         }
     )
     pooler_type: str = field(
-        default="cls",
+        default="avg",
         metadata={
             "help": 
-            "What kind of pooler to use (cls, cls_before_pooler, avg, avg_top2, avg_first_last, swam)."
+            "What kind of pooler to use (cls, cls_before_pooler, avg, avg_top2, avg_first_last)."
         }
     ) 
     hard_negative_weight: float = field(
@@ -223,7 +229,7 @@ class ModelArguments:
     )
     # Arguments for Modularized SimCSE
     model_class_name: str = field(
-        default="SWAMRobertaForCL",
+        default="RobertaForCL",
         metadata={"help": "Name of the model class to use."},
     )
     model_package_name: str = field(
@@ -245,6 +251,14 @@ class ModelArguments:
     freeze_backbone: bool = field(
         default=False,
         metadata={"help": "Whether to freeze the PLM backbone."},
+    )
+    model_pretrained_init: bool = field(
+        default=False,
+        metadata={"help": "Whether to init model from pretrained."},
+    )
+    model_init_kwargs: str = field(
+        default="model_args",
+        metadata={"help": "Name of arguments to pass to `__init__` function, separated by ;"},
     )
 
 
@@ -360,7 +374,14 @@ def main():
     # download model & vocab.
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        finetuning_task="continual contrastive learning",
+        finetuning_task="sts",
+        cache_dir=model_args.cache_dir,
+        revision=model_args.model_revision,
+        use_auth_token=True if model_args.use_auth_token else None,
+    )
+    proxy_config = AutoConfig.from_pretrained(
+        model_args.proxy_config if model_args.proxy_config_name else model_args.proxy_model_name_or_path,
+        finetuning_task="sts",
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
@@ -376,17 +397,23 @@ def main():
         importlib.import_module(f"..{model_args.model_package_name}", package="models.subpkg"), 
         model_args.model_class_name
         )
-    model_init_kwargs = {"model_args": model_args}
-    model = model_class.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-        ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
-        **model_init_kwargs,
-    )
+    model_init_kwargs = {}
+    for init_args in model_args.model_init_kwargs.split(";"):
+        model_init_kwargs[init_args] = eval(init_args)
+    if model_args.model_pretrained_init:
+        model = model_class.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+            ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
+            **model_init_kwargs,
+        )
+    else:
+        model = model_class(**model_init_kwargs)
+    
 
     # Preprocessing the raw_datasets
     # Padding strategy
