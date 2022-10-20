@@ -163,3 +163,4 @@ cython_debug/
 # Customized items
 .vscode/
 wandb
+checkpoint/*

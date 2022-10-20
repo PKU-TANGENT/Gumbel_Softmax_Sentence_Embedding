@@ -12,7 +12,7 @@ from .modeling_outputs import ProxyOutput
 class ProxyBert(DistilBertForSequenceClassification):
     def __init__(self, config: PretrainedConfig, *inputs, **kwargs):
         config.num_labels = 2
-        super.__init__(config)
+        super().__init__(config)
     def forward(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -22,6 +22,8 @@ class ProxyBert(DistilBertForSequenceClassification):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
     ) -> Union[ProxyOutput, Tuple[torch.Tensor, ...]]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 

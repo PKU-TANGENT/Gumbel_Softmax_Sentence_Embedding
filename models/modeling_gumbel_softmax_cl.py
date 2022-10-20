@@ -1,8 +1,9 @@
 from transformers import (
     PreTrainedModel,
 )
+import math
 from .modeling_proxy import ProxyBert, ProxyRoberta
-from .modeling_gumbel_softmax_bert import GumbelSoftmaxBert
+from .modeling_gumbel_softmax_bert import GumbelSoftmaxBertModel
 import torch
 from torch import nn
 from typing import List, Optional, Tuple, Union
@@ -24,9 +25,14 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
         self.simple_head = SimpleHead(config)     
         self.loss_func = nn.CrossEntropyLoss()      
         # TODO: add roberta
-        model_class, proxy_class = (GumbelSoftmaxBert, ProxyBert) if "roberta" not in config._name_or_path else (None, ProxyRoberta)
-        self.model = model_class.from_pretrained(config=config)
-        self.proxy = proxy_class.from_pretrained(config=proxy_config)
+        model_class, proxy_class = (GumbelSoftmaxBertModel, ProxyBert) if "roberta" not in config._name_or_path else (None, ProxyRoberta)
+        self.model = model_class.from_pretrained(config._name_or_path, config=config)
+        self.proxy = proxy_class.from_pretrained(proxy_config._name_or_path, config=proxy_config)
+
+        # for temperature scheduler
+        self.min_tau = model_args.min_tau
+        self.exp_scheduler_hyper = model_args.exp_scheduler_hyper
+        self.t = 0
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -81,7 +87,9 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
             proxy_outputs += equal_to_zero.unsqueeze(-1) * tmp_max 
             
         else:
-            proxy_outputs = torch.nn.functional.gumbel_softmax(proxy_outputs, tau=self.tau)
+            tau = max(self.min_tau, math.exp(-self.t * self.exp_scheduler_hyper))
+            self.t += batch_size
+            proxy_outputs = torch.nn.functional.gumbel_softmax(proxy_outputs, tau=tau)[:, :, 0]
 
 
         # for CL
@@ -91,7 +99,7 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
         attention_mask = attention_mask * 2 if num_input_ids == 1 and not inference else attention_mask
         attention_mask = torch.concat(attention_mask, dim=0)
         for layer in self.model.encoder.layer:
-            setattr(layer, "proxy_outputs", proxy_outputs)
+            setattr(layer.attention.self, "proxy_outputs", proxy_outputs)
 
         outputs = self.model(
             input_ids,
@@ -105,8 +113,8 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
             return_dict=return_dict,
         )
         for layer in self.model.encoder.layer:
-            delattr(layer, "proxy_outputs")
-        pooler_output  = self.pooler(attention_mask, outputs)
+            delattr(layer.attention.self, "proxy_outputs")
+        pooler_output  = self.pooler(attention_mask, outputs, proxy_outputs=proxy_outputs)
         pooler_output = self.simple_head(pooler_output)
         anchor_output = pooler_output[:batch_size]
         positive_and_negative_output = pooler_output[batch_size:]

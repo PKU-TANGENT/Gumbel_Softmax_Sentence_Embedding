@@ -39,8 +39,8 @@ output_dir="checkpoint/reproduce/${contrastive_learning_style}-${model_name_or_p
 hub_model_id="reproduce-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 export WANDB_DISABLED=true
 export WANDB_PROJECT=$model_name_or_path
-# python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
-python train.py \
+# python train.py \
+python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
     --model_name_or_path $model_name_or_path \
     --proxy_model_name_or_path $proxy_model \
     --dataset_name $dataset_name \
@@ -71,6 +71,7 @@ python train.py \
     --model_package_name "modeling_gumbel_softmax_cl" \
     --ignore_transfer_test \
     --model_head_lr $learning_rate \
-    --model_init_kwargs "model_args;config;proxy_config"
+    --model_init_kwargs "model_args;config;proxy_config" \
     --overwrite_output_dir \
+    --eval_ratio 12 \
     # --push_to_hub \
