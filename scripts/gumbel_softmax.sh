@@ -1,7 +1,8 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=7
-contrastive_learning_style="unsup"
-model_name_or_path="bert-base-uncased"
+export TOKENIZERS_PARALLELISM=false
+contrastive_learning_style="sup"
+model_name_or_path="roberta-base"
 # currently only support `bert uncased` and `roberta` style model
 # export CUDA_VISIBLE_DEVICES=$1
 # contrastive_learning_style=$2
@@ -33,10 +34,9 @@ else
     learning_rate=5e-5
 fi
 
-export TOKENIZERS_PARALLELISM=false
 pooler_type="avg"
-output_dir="checkpoint/reproduce/${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
-hub_model_id="reproduce-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
+output_dir="checkpoint/gumbel_softmax/${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
+hub_model_id="gumbel_softmax-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 export WANDB_DISABLED=true
 export WANDB_PROJECT=$model_name_or_path
 # python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
@@ -71,6 +71,6 @@ python train.py \
     --model_package_name "modeling_gumbel_softmax_cl" \
     --ignore_transfer_test \
     --model_head_lr $learning_rate \
-    --model_init_kwargs "model_args;config;proxy_config"
-    --overwrite_output_dir \
+    --model_init_kwargs "model_args;config;proxy_config" \
+    # --overwrite_output_dir \
     # --push_to_hub \

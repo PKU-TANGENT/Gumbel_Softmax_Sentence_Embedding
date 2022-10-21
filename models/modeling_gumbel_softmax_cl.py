@@ -4,6 +4,7 @@ from transformers import (
 import math
 from .modeling_proxy import ProxyBert, ProxyRoberta
 from .modeling_gumbel_softmax_bert import GumbelSoftmaxBertModel
+from .modeling_gumbel_softmax_roberta import GumbelSoftmaxRobertaModel
 import torch
 from torch import nn
 from typing import List, Optional, Tuple, Union
@@ -16,22 +17,21 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
         super().__init__(config)
         model_args = model_kwargs.pop("model_args", None)
         self.model_args = model_args
-        config.pooler_type = model_args.pooler_type
-        config.temp = model_args.temp
+        config.pooler_type = model_args.pooler_type if model_args is not None else "avg"
+        config.temp = model_args.temp if model_args is not None else 0.05
         self.config = config
         self.similarity = CosSimilarityWithTemp(config.temp)        
         self.pooler_type = config.pooler_type
         self.pooler = Pooler(config.pooler_type)   
         self.simple_head = SimpleHead(config)     
         self.loss_func = nn.CrossEntropyLoss()      
-        # TODO: add roberta
-        model_class, proxy_class = (GumbelSoftmaxBertModel, ProxyBert) if "roberta" not in config._name_or_path else (None, ProxyRoberta)
+        model_class, proxy_class = (GumbelSoftmaxBertModel, ProxyBert) if "roberta" not in config._name_or_path else (GumbelSoftmaxRobertaModel, ProxyRoberta)
         self.model = model_class.from_pretrained(config._name_or_path, config=config)
         self.proxy = proxy_class.from_pretrained(proxy_config._name_or_path, config=proxy_config)
 
         # for temperature scheduler
-        self.min_tau = model_args.min_tau
-        self.exp_scheduler_hyper = model_args.exp_scheduler_hyper
+        self.min_tau = model_args.min_tau if model_args is not None else 0.5
+        self.exp_scheduler_hyper = model_args.exp_scheduler_hyper if model_args is not None else 1e-5
         self.t = 0
     def forward(
         self,
@@ -81,7 +81,7 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
         # proxy_outputs -> [bs, seq_len, 2]
         if inference:
             # handle weight all equals to zero
-            tmp_max = torch.nn.functional.one_hot(proxy_outputs[:, :, 0].argmax(dim=-1), proxy_outputs.size(1)) # [bs]
+            tmp_max = torch.nn.functional.one_hot((proxy_outputs.softmax(dim=-1)[:, :, 0]).argmax(dim=-1), proxy_outputs.size(1)) # [bs]
             proxy_outputs = (proxy_outputs.argmax(dim=-1)==0).to(torch.float) # [bs, seq_len]
             equal_to_zero = (proxy_outputs.sum(dim=-1) == 0).to(torch.float) # [bs]
             proxy_outputs += equal_to_zero.unsqueeze(-1) * tmp_max 

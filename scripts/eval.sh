@@ -3,45 +3,48 @@ export CUDA_VISIBLE_DEVICES=7
 export TOKENIZERS_PARALLELISM=false
 contrastive_learning_style="unsup"
 model_name_or_path="roberta-base"
-# model_name_or_path="princeton-nlp/unsup-simcse-roberta-base"
+# make sure that the model is named as "bert-..." or "roberta-..."
+IFS="-" read -r -a name_parser <<< "$model_name_or_path"
+model_architecture="${name_parser[0]}"
 pooler_type="avg"
-output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}"
-hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
-# output_dir="checkpoint/${contrastive_learning_style}-${model_name_or_path}-new"
-# hub_model_id="${contrastive_learning_style}-${model_name_or_path}-${pooler_type}-new"
-logging_steps=125
-
+# dummy output dir
+output_dir="checkpoint/eval_reproduce/"
+# output_dir="checkpoint/gumbel_softmax/${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
+# hub_model_id="gumbel_softmax-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
+export WANDB_DISABLED=true
+export WANDB_PROJECT=$model_name_or_path
 # python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
 python train.py \
     --model_name_or_path $model_name_or_path \
-    --output_dir $output_dir \
+    --proxy_model_name_or_path $proxy_model \
+    --dataset_name $dataset_name \
+    --num_train_epochs 3 \
+    --per_device_train_batch_size $per_device_train_batch_size \
+    --learning_rate $learning_rate \
+    --max_seq_length 32 \
+    --evaluation_strategy steps \
+    --save_strategy steps \
+    --metric_for_best_model stsbenchmark_train_and_dev_spearman \
+    --load_best_model_at_end \
     --pooler_type $pooler_type \
     --temp 0.05 \
-    --private \
+    --do_eval \
     --do_predict \
-    --train_file data/wiki1m_for_simcse.txt \
-    --model_package_name modeling_roberta_cl \
-    --mlp_only_train \
-    # --do_eval \
-    # --model_class_name RobertaForCL \
-    # --eval_transfer \
-    # --num_train_epochs 1 \
-    # --per_device_train_batch_size 64 \
-    # --learning_rate 3e-5 \
-    # --max_seq_length 32 \
-    # --evaluation_strategy steps \
-    # --save_strategy steps \
-    # --eval_steps $logging_steps \
-    # --save_steps $logging_steps \
-    # --logging_steps $logging_steps \
-    # --metric_for_best_model stsbenchmark_spearman \
-    # --load_best_model_at_end \
-    # --fp16 \
-    # --gradient_accumulation_steps 1 \
-    # --warmup_ratio 0.06 \
-    # --weight_decay 0.1 \
-    # --save_total_limit 1 \
-    # --hub_model_id $hub_model_id \
-    # --load_best_model_at_end \
-    # --greater_is_better True \
+    --fp16 \
+    --gradient_accumulation_steps 1 \
+    --warmup_ratio 0.06 \
+    --weight_decay 0.1 \
+    --save_total_limit 1 \
+    --output_dir $output_dir \
+    --load_best_model_at_end \
+    --greater_is_better True \
+    --private \
+    --do_train \
+    --hub_model_id $hub_model_id \
+    --model_class_name "GumbelSoftmaxPLMForCL" \
+    --model_package_name "modeling_gumbel_softmax_cl" \
+    --ignore_transfer_test \
+    --model_head_lr $learning_rate \
+    --model_init_kwargs "model_args;config;proxy_config" \
+    --overwrite_output_dir \
     # --push_to_hub \

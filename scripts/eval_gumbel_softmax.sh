@@ -1,11 +1,8 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=6
+export CUDA_VISIBLE_DEVICES=7
+export TOKENIZERS_PARALLELISM=false
 contrastive_learning_style="unsup"
 model_name_or_path="roberta-base"
-# currently only support `bert uncased` and `roberta` style model
-# export CUDA_VISIBLE_DEVICES=$1
-# contrastive_learning_style=$2
-# model_name_or_path=$3
 if [[ "${contrastive_learning_style}" == "unsup" ]]; then
     dataset_name="JeremiahZ/simcse_unsup_wiki"
 else
@@ -33,14 +30,13 @@ else
     learning_rate=5e-5
 fi
 
-export TOKENIZERS_PARALLELISM=false
 pooler_type="avg"
 output_dir="checkpoint/gumbel_softmax/${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 hub_model_id="gumbel_softmax-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 export WANDB_DISABLED=true
 export WANDB_PROJECT=$model_name_or_path
-# python train.py \
-python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
+# python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
+python train.py \
     --model_name_or_path $model_name_or_path \
     --proxy_model_name_or_path $proxy_model \
     --dataset_name $dataset_name \
@@ -72,6 +68,5 @@ python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
     --ignore_transfer_test \
     --model_head_lr $learning_rate \
     --model_init_kwargs "model_args;config;proxy_config" \
-    --overwrite_output_dir \
-    --eval_ratio 12 \
+    # --overwrite_output_dir \
     # --push_to_hub \
