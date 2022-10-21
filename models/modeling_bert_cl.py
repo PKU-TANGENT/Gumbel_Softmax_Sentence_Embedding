@@ -4,26 +4,26 @@ from transformers import (
 )
 from typing import List, Optional, Tuple, Union
 import torch
-import torch.nn as nn
 from torch.nn import (
     CrossEntropyLoss,
-    BCEWithLogitsLoss,
-    MSELoss,
 )
 from .modeling_outputs import ContrastiveLearningOutput
 from .model_utils import CosSimilarityWithTemp, Pooler, SimpleHead
 class BertForCL(BertPreTrainedModel):
-    def __init__(self, config, *model_args, **model_kwargs):
+    def __init__(self, config, *inputs, **model_kwargs):
         super().__init__(config)
-        self.config = config
-        self.model_args = model_kwargs.pop("model_args", None)
+        model_args = model_kwargs.pop("model_args", None)
+        self.model_args = model_args
         self.bert = BertModel(config, add_pooling_layer=False)
-        # Initialize weights and apply final processing
-        self.similarity = CosSimilarityWithTemp(self.model_args.temp)        
-        self.pooler_type = self.model_args.pooler_type
-        self.pooler = Pooler(self.model_args.pooler_type)   
+        config.pooler_type = model_args.pooler_type if model_args is not None else "cls"
+        config.temp = model_args.temp if model_args is not None else 0.05
+        self.config = config
+        self.similarity = CosSimilarityWithTemp(config.temp)        
+        self.pooler_type = config.pooler_type
+        self.pooler = Pooler(config.pooler_type)   
         self.simple_head = SimpleHead(config)     
-        self.loss_func = nn.CrossEntropyLoss()      
+        self.loss_func = CrossEntropyLoss()      
+        # Initialize weights and apply final processing
         self.post_init()
     def forward(
         self,
@@ -59,6 +59,7 @@ class BertForCL(BertPreTrainedModel):
         num_input_ids = len(input_ids)
         batch_size = input_ids[0].size(0)
         input_ids = input_ids * 2 if num_input_ids == 1 and not inference else input_ids
+        device=input_ids[0].device
         input_ids = torch.concat(input_ids, dim=0)
         attention_mask = attention_mask * 2 if num_input_ids == 1 and not inference else attention_mask
         attention_mask = torch.concat(attention_mask, dim=0)
@@ -74,11 +75,12 @@ class BertForCL(BertPreTrainedModel):
             return_dict=return_dict,
         )
         pooler_output  = self.pooler(attention_mask, outputs)
-        pooler_output = self.simple_head(pooler_output)
+        if not inference or not self.model_args.mlp_only_train:
+            pooler_output = self.simple_head(pooler_output)
         anchor_output = pooler_output[:batch_size]
         positive_and_negative_output = pooler_output[batch_size:]
         cos_sim = self.similarity(anchor_output.unsqueeze(1), positive_and_negative_output.unsqueeze(0)) if not inference else None
-        labels = torch.arange(batch_size, dtype=torch.long, device=anchor_output.device) if not inference else None
+        labels = torch.arange(batch_size, dtype=torch.long, device=device) if not inference else None
 
         loss = self.loss_func(cos_sim, labels) if not inference else None
 

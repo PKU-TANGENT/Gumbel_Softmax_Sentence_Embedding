@@ -47,14 +47,11 @@ class ModelArguments:
     """
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
     """
-    pretrained_path: str = field(
-        metadata={"help": "Path or model identified to jointly trained weights by this repo."}
-    )
     model_name_or_path: str = field(
         metadata={"help": "For backbone model, path to model or model identifier from huggingface.co/models"}
     )
-    proxy_model_name_or_path: str = field(
-        metadata={"help": "For proxy model, path to pretrained model or model identifier from huggingface.co/models"}
+    proxy_model_name_or_path: Optional[str] = field(
+        default=None, metadata={"help" : "Pretrained config name of path for proxy model, only for gumbel-softmax training."}
     )
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
@@ -145,6 +142,6 @@ class ModelArguments:
         metadata={"help": "Name of the trainer package to use."},
     )
     model_init_kwargs: str = field(
-        default="model_args",
+        default="model_args;config",
         metadata={"help": "Name of arguments to pass to `__init__` function, separated by ;"},
     )

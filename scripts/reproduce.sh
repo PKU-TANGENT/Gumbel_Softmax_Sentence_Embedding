@@ -10,8 +10,11 @@ if [[ "${contrastive_learning_style}" == "unsup" ]]; then
 else
     train_file="JeremiahZ/simcse_sup_nli"
 fi
-IFS="-" read -r -a name_parser <<< "$model_name_or_path"
-model_architecture="${name_parser[0]}"
+if [[ "$model_name_or_path" =~ "roberta" ]];then
+    model_architecture=roberta
+else
+    model_architecture=bert
+fi
 if [[ "${contrastive_learning_style}" == "unsup" ]]; then
     if [[ "${model_architecture}" == "roberta" ]]; then
         learning_rate=1e-5

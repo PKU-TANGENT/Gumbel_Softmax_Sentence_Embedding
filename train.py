@@ -166,13 +166,14 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    proxy_config = AutoConfig.from_pretrained(
-        model_args.proxy_config if model_args.proxy_config_name else model_args.proxy_model_name_or_path,
-        finetuning_task="sts",
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
+    if getattr(model_args, "proxy_config", None) is not None:
+        proxy_config = AutoConfig.from_pretrained(
+            model_args.proxy_config if model_args.proxy_config_name else model_args.proxy_model_name_or_path,
+            finetuning_task="sts",
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,

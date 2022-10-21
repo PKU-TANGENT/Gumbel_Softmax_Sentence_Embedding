@@ -81,8 +81,8 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
-    proxy_model_name_or_path: str = field(
-        metadata={"help": "For proxy model, path to pretrained model or model identifier from huggingface.co/models"}
+    proxy_model_name_or_path: Optional[str] = field(
+        default=None, metadata={"help" : "Pretrained config name of path for proxy model, only for gumbel-softmax training."}
     )
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}

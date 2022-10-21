@@ -40,7 +40,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 from trainers.CustomTrainingArgument import CustomTrainingArgument
-from arguments.default import DataTrainingArguments, ModelArguments
+from arguments.eval import DataTrainingArguments, ModelArguments
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.22.0")
@@ -108,13 +108,14 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    proxy_config = AutoConfig.from_pretrained(
-        model_args.proxy_config if model_args.proxy_config_name else model_args.proxy_model_name_or_path,
-        finetuning_task="sts",
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
+    if getattr(model_args, "proxy_config", None) is not None:
+        proxy_config = AutoConfig.from_pretrained(
+            model_args.proxy_config if model_args.proxy_config_name else model_args.proxy_model_name_or_path,
+            finetuning_task="sts",
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -132,7 +133,6 @@ def main():
     model = model_class.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
@@ -141,53 +141,7 @@ def main():
     )
     
 
-    # Preprocessing the raw_datasets
-    # Padding strategy
     
-    if data_args.pad_to_max_length:
-        padding = "max_length"
-    else:
-        # We will pad later, dynamically at batch creation, to the max sequence length in each batch
-        padding = False
-
-    if data_args.max_seq_length > tokenizer.model_max_length:
-        logger.warning(
-            f"The max_seq_length passed ({data_args.max_seq_length}) is larger than the maximum length for the"
-            f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}."
-        )
-    max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
-
-    def preprocess_function(examples):
-        # Tokenize the texts
-        result_dict = {}
-        for i, column in enumerate(column_names):
-        
-            result = tokenizer(examples[column], padding=padding, max_length=max_seq_length, truncation=True)
-            for k, v in result.items():
-                result_dict[k+"_"+str(i)] = v
-
-        return result_dict
-    if training_args.do_train:
-        with training_args.main_process_first(desc="dataset map pre-processing"):
-            raw_datasets = raw_datasets.map(
-                preprocess_function,
-                batched=True,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on dataset",
-            )
-    if training_args.do_train:
-        if "train" not in raw_datasets:
-            raise ValueError("--do_train requires a train dataset")
-        train_dataset = raw_datasets["train"]
-        if data_args.max_train_samples is not None:
-            max_train_samples = min(len(train_dataset), data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
-
-    # Log a few random samples from the training set:
-    if training_args.do_train:
-        for index in random.sample(range(len(train_dataset)), 3):
-            logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
     # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
     # predictions and label_ids field) and has to return a dictionary string to float.
 
@@ -207,7 +161,7 @@ def main():
     trainer = trainer_class(
         model=model,
         args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
+        train_dataset=None,
         tokenizer=tokenizer,
         data_collator=data_collator,
     )
@@ -225,37 +179,11 @@ def main():
     # num_train_epochs = math.ceil(args.num_train_epochs)
     # num_train_samples = len(train_dataloader.dataset) * args.num_train_epochs
 
-    # Training
-    if training_args.do_train:
-        checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        metrics = train_result.metrics
-        max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
-        )
-        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
-
-        trainer.save_model()  # Saves the tokenizer too for easy upload
-
-        trainer.log_metrics("train", metrics)
-        trainer.save_metrics("train", metrics)
-        trainer.save_state()
-
     # Evaluation
-    if training_args.do_eval:
-        logger.info("*** Evaluate ***")
-        metrics = trainer.evaluate(eval_senteval_transfer=True)
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
-    if training_args.do_predict:
-        logger.info("*** Predict ***")
-        metrics = trainer.evaluate(eval_senteval_transfer=model_args.eval_transfer, metric_key_prefix="test", predict=True)
-        trainer.log_metrics("test", metrics)
-        trainer.save_metrics("test", metrics)
+    logger.info("*** Evaluate ***")
+    metrics = trainer.evaluate(eval_senteval_transfer=True)
+    trainer.log_metrics("eval", metrics)
+    trainer.save_metrics("eval", metrics)
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "sentence-similarity"}
     # if data_args.task_name is not None:
     kwargs["language"] = "en"

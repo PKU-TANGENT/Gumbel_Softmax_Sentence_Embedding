@@ -8,9 +8,14 @@ if [[ "${contrastive_learning_style}" == "unsup" ]]; then
 else
     dataset_name="JeremiahZ/simcse_sup_nli"
 fi
+if [[ "$model_name_or_path" =~ "roberta" ]];then
+    model_architecture=roberta
+else
+    model_architecture=bert
+fi
 # make sure that the model is named as "bert-..." or "roberta-..."
-IFS="-" read -r -a name_parser <<< "$model_name_or_path"
-model_architecture="${name_parser[0]}"
+# IFS="-" read -r -a name_parser <<< "$model_name_or_path"
+# model_architecture="${name_parser[0]}"
 # proxy_model must have the same tokenizer system as the base model
 if [[ "${model_architecture}" == "roberta" ]]; then
     proxy_model=distilroberta-base
