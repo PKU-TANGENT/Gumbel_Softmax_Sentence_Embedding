@@ -1,5 +1,7 @@
 # Gumbel-Softmax + Sentence Embedding
-This is a separate repo for a specific part of my undergrad thesis (My undergrad thesis repo is [here](https://github.com/Ja1Zhou/SimCSE_PRO)). I attempt to improve `sentence embeddings` via `discrete optimization`, which is learnt through `Gumbel Softmax`. The performance results are not ideal, yet the `methodology` and `implementation` behind this exploration are worth documenting. The `highlights` are:
+This is a separate repo for a specific part of my undergrad thesis (My undergrad thesis repo is [here](https://github.com/Ja1Zhou/SimCSE_PRO)). I attempt to improve `sentence embeddings` via `discrete optimization`, which is learnt through `Gumbel Softmax`. The performance results are not ideal, yet the `methodology` and `implementation` behind this exploration are worth documenting. 
+
+The `highlights` are:
 - Huggingface style `Trainer` + `transformers:v4.22.0` compatibility
 - `Discrete Optimization` + `Gumbel-Softmax` method
 - More reasonable `evaluation`
@@ -47,7 +49,7 @@ Originally, discrete optimization is learnt in RL style through REINFORCE algori
 $$\nabla_\theta\mathbb{E}_z[\mathcal{L}(z)] = \nabla_\theta \int dz\ p_\theta(z)\mathcal{L}(z) = \int dz\ p_\theta(z)\nabla_\theta \log p_\theta(z)\mathcal{L}(z)\\
 =\mathbb{E}_z[\mathcal{L}(z)\nabla_\theta \log p_\theta(z)]$$
 
-where $z$ is drawn from a distribution parameterized on $\theta$ and $\theta$ is optimized. The problem lies in sampling from the distribution during each learning step. 
+where $z$ is drawn from a distribution parameterized on $\theta$ and $\theta$ is optimized. The problem lies in `efficienctly sampling` from the distribution during each learning step. Even binary combinations would grow expotentially. Another difficulty is related to `high variance`. The motivation for a better optimization objective is strong. 
 ### Gumbel-Max
 sampling from an arbitrary discrete distribution can be tackled through the `Gumbel-Max` trick, which takes the form of:
 $$\argmax_i(\log p_i - \log(-\log\varepsilon_i)),\ \varepsilon_i\ i.i.d.\sim\mathcal{U}(0, 1)$$
@@ -71,6 +73,7 @@ $$
 We have
 
 $$\mathbb{G}(j)\geq\mathbb{G}(i)\Leftrightarrow\ \log p_i-\log(-\log\varepsilon_i)\geq \log p_j-\log(-\log\varepsilon_j)\\
+\\
 \Leftrightarrow \frac{p_i}{-\log \varepsilon_i}\leq \frac{p_j}{-\log \varepsilon_j} \Leftrightarrow p_i\log\varepsilon_j\geq p_j\log\varepsilon_i\\
 \Leftrightarrow\varepsilon_i\leq\varepsilon_j^{\frac{p_i}{p_j}}
 $$
