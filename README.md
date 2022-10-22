@@ -43,8 +43,10 @@ bash scripts/gumbel_softmax.sh
 ## Gumbel Softmax [(original paper)](https://arxiv.org/abs/1611.01144)
 ### Discrete Optimization
 Originally, discrete optimization is learnt in RL style through REINFORCE algorithm. 
+
 $$\nabla_\theta\mathbb{E}_z[\mathcal{L}(z)] = \nabla_\theta \int dz\ p_\theta(z)\mathcal{L}(z) = \int dz\ p_\theta(z)\nabla_\theta \log p_\theta(z)\mathcal{L}(z)\\
 =\mathbb{E}_z[\mathcal{L}(z)\nabla_\theta \log p_\theta(z)]$$
+
 where $z$ is drawn from a distribution parameterized on $\theta$ and $\theta$ is optimized. The problem lies in sampling from the distribution during each learning step. 
 ### Gumbel-Max
 sampling from an arbitrary discrete distribution can be tackled through the `Gumbel-Max` trick, which takes the form of:
