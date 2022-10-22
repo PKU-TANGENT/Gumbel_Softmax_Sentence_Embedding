@@ -11,7 +11,6 @@ from typing import List, Optional, Tuple, Union
 from .modeling_outputs import ContrastiveLearningOutput 
 from .modeling_outputs import ContrastiveLearningOutput 
 from .model_utils import CosSimilarityWithTemp, Pooler, SimpleHead
-# from .gumbel_softmax import get_gumbel_softmax_mask
 class GumbelSoftmaxPLMForCL(PreTrainedModel):
     def __init__(self, config, proxy_config, *inputs, **model_kwargs):
         super().__init__(config)
@@ -28,6 +27,14 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
         model_class, proxy_class = (GumbelSoftmaxBertModel, ProxyBert) if "roberta" not in config._name_or_path else (GumbelSoftmaxRobertaModel, ProxyRoberta)
         self.model = model_class.from_pretrained(config._name_or_path, config=config)
         self.proxy = proxy_class.from_pretrained(proxy_config._name_or_path, config=proxy_config)
+        if getattr(model_args, "compute_sparsity", False):
+            self.compute_sparsity = True
+            self.sparsity_numerator = 0
+            self.sparsity_denominator = 0
+        else:
+            self.compute_sparsity = False
+            
+        self.return_probs = getattr(model_args, "return_probs", False)
 
         # for temperature scheduler
         self.min_tau = model_args.min_tau if model_args is not None else 0.5
@@ -85,11 +92,15 @@ class GumbelSoftmaxPLMForCL(PreTrainedModel):
             proxy_outputs = (proxy_outputs.argmax(dim=-1)==0).to(torch.float) # [bs, seq_len]
             equal_to_zero = (proxy_outputs.sum(dim=-1) == 0).to(torch.float) # [bs]
             proxy_outputs += equal_to_zero.unsqueeze(-1) * tmp_max 
-            
+            if self.compute_sparsity:
+                self.sparsity_numerator += ((proxy_outputs * proxy_attention_mask).to(torch.int)).sum()
+                self.sparsity_denominator += (proxy_attention_mask.to(torch.int)).sum()
         else:
             tau = max(self.min_tau, math.exp(-self.t * self.exp_scheduler_hyper))
             self.t += batch_size
             proxy_outputs = torch.nn.functional.gumbel_softmax(proxy_outputs, tau=tau)[:, :, 0]
+        if self.return_probs:
+            self.returned_probs = proxy_outputs.clone().detach()
 
 
         # for CL

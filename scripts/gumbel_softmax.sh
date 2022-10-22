@@ -56,7 +56,6 @@ python train.py \
     --load_best_model_at_end \
     --pooler_type $pooler_type \
     --temp 0.05 \
-    --do_eval \
     --do_predict \
     --fp16 \
     --gradient_accumulation_steps 1 \

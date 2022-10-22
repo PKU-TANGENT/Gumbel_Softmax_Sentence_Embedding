@@ -1,14 +1,14 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=7
-contrastive_learning_style="unsup"
-model_name_or_path="roberta-base"
+contrastive_learning_style="sup"
+model_name_or_path="bert-base-uncased"
 # export CUDA_VISIBLE_DEVICES=$1
 # contrastive_learning_style=$2
 # model_name_or_path=$3
 if [[ "${contrastive_learning_style}" == "unsup" ]]; then
-    train_file="JeremiahZ/simcse_unsup_wiki"
+    dataset_name="JeremiahZ/simcse_unsup_wiki"
 else
-    train_file="JeremiahZ/simcse_sup_nli"
+    dataset_name="JeremiahZ/simcse_sup_nli"
 fi
 if [[ "$model_name_or_path" =~ "roberta" ]];then
     model_architecture=roberta
@@ -34,10 +34,10 @@ output_dir="checkpoint/reproduce/${contrastive_learning_style}-${model_name_or_p
 hub_model_id="reproduce-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 export WANDB_PROJECT=$model_name_or_path
 export WANDB_DISABLED=true
-# python train.py \
-python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
+# python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
+python train.py \
     --model_name_or_path $model_name_or_path \
-    --train_file $train_file \
+    --dataset_name $dataset_name \
     --num_train_epochs 3 \
     --per_device_train_batch_size $per_device_train_batch_size \
     --learning_rate $learning_rate \
@@ -48,7 +48,6 @@ python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
     --load_best_model_at_end \
     --pooler_type $pooler_type \
     --temp 0.05 \
-    --do_eval \
     --do_predict \
     --fp16 \
     --gradient_accumulation_steps 1 \
@@ -65,5 +64,7 @@ python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
     --model_package_name "modeling_${model_architecture}_cl" \
     --ignore_transfer_test \
     --model_head_lr $learning_rate \
+    --model_init_kwargs "model_args;config" \
+    --model_pretrained_init \
     # --push_to_hub \
     # --overwrite_output_dir \

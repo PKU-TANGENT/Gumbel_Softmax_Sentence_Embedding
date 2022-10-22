@@ -1,53 +1,26 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=7
 export TOKENIZERS_PARALLELISM=false
-contrastive_learning_style="unsup"
-model_name_or_path="roberta-base"
-if [[ "${contrastive_learning_style}" == "unsup" ]]; then
-    dataset_name="JeremiahZ/simcse_unsup_wiki"
-else
-    dataset_name="JeremiahZ/simcse_sup_nli"
-fi
+model_name_or_path="checkpoint/gumbel_softmax/unsup-bert-base-uncased-avg/checkpoint-46875"
+# proxy_model must have the same tokenizer system as the base model
 if [[ "$model_name_or_path" =~ "roberta" ]];then
     model_architecture=roberta
-else
-    model_architecture=bert
-fi
-# make sure that the model is named as "bert-..." or "roberta-..."
-# IFS="-" read -r -a name_parser <<< "$model_name_or_path"
-# model_architecture="${name_parser[0]}"
-# proxy_model must have the same tokenizer system as the base model
-if [[ "${model_architecture}" == "roberta" ]]; then
     proxy_model=distilroberta-base
 else
+    model_architecture=bert
     proxy_model=distilbert-base-uncased
 fi
-if [[ "${contrastive_learning_style}" == "unsup" ]]; then
-    if [[ "${model_architecture}" == "roberta" ]]; then
-        learning_rate=1e-5
-        per_device_train_batch_size=512
-    else
-        learning_rate=3e-5
-        per_device_train_batch_size=64
-    fi
-else
-    per_device_train_batch_size=512
-    learning_rate=5e-5
-fi
-
 pooler_type="avg"
-output_dir="checkpoint/gumbel_softmax/${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
-hub_model_id="gumbel_softmax-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
+output_dir="checkpoint/eval_gumbel_softmax/${model_name_or_path//\//-}"
 export WANDB_DISABLED=true
 export WANDB_PROJECT=$model_name_or_path
-# python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \
-python train.py \
+# python -m debugpy --listen 127.0.0.1:9999 --wait-for-client eval.py \
+python eval.py \
     --model_name_or_path $model_name_or_path \
     --proxy_model_name_or_path $proxy_model \
-    --dataset_name $dataset_name \
     --num_train_epochs 3 \
-    --per_device_train_batch_size $per_device_train_batch_size \
-    --learning_rate $learning_rate \
+    --per_device_train_batch_size 512 \
+    --learning_rate 5e-5 \
     --max_seq_length 32 \
     --evaluation_strategy steps \
     --save_strategy steps \
@@ -65,13 +38,11 @@ python train.py \
     --output_dir $output_dir \
     --load_best_model_at_end \
     --greater_is_better True \
-    --private \
-    --do_train \
-    --hub_model_id $hub_model_id \
     --model_class_name "GumbelSoftmaxPLMForCL" \
     --model_package_name "modeling_gumbel_softmax_cl" \
     --ignore_transfer_test \
-    --model_head_lr $learning_rate \
     --model_init_kwargs "model_args;config;proxy_config" \
-    # --overwrite_output_dir \
+    --overwrite_output_dir \
+    --compute_sparsity True \
+    # --hub_model_id $hub_model_id \
     # --push_to_hub \

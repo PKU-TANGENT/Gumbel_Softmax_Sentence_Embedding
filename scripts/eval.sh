@@ -1,7 +1,6 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=7
 export TOKENIZERS_PARALLELISM=false
-# contrastive_learning_style="unsup"
 model_name_or_path="JeremiahZ/reproduce-sup-roberta-base-avg"
 if [[ "$model_name_or_path" =~ "roberta" ]];then
     model_architecture=roberta
@@ -10,8 +9,6 @@ else
 fi
 pooler_type="avg"
 output_dir="checkpoint/eval_reproduce/${model_name_or_path//\//-}"
-# output_dir="checkpoint/gumbel_softmax/${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
-# hub_model_id="gumbel_softmax-${contrastive_learning_style}-${model_name_or_path}-${pooler_type}"
 export WANDB_DISABLED=true
 export WANDB_PROJECT=$model_name_or_path
 # python -m debugpy --listen 127.0.0.1:9999 --wait-for-client train.py \

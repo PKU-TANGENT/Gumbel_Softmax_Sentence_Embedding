@@ -166,7 +166,7 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    if getattr(model_args, "proxy_config", None) is not None:
+    if getattr(model_args, "proxy_model_name_or_path", None) is not None:
         proxy_config = AutoConfig.from_pretrained(
             model_args.proxy_config if model_args.proxy_config_name else model_args.proxy_model_name_or_path,
             finetuning_task="sts",
@@ -307,20 +307,17 @@ def main():
         trainer.save_state()
 
     # Evaluation
-    if training_args.do_eval:
-        logger.info("*** Evaluate ***")
-        metrics = trainer.evaluate(eval_senteval_transfer=True)
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
     if training_args.do_predict:
         logger.info("*** Predict ***")
         metrics = trainer.evaluate(eval_senteval_transfer=model_args.eval_transfer, metric_key_prefix="test", predict=True)
         trainer.log_metrics("test", metrics)
         trainer.save_metrics("test", metrics)
+    # compute sparsity over training is too costly
+    # if getattr(model_args, "compute_sparsity", False):
+    #     print("Overall sparsity: {sparsity:.2f}%".format(sparsity=trainer.model.sparsity_numerator / trainer.model.sparsity_denominator * 100))
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "sentence-similarity"}
     # if data_args.task_name is not None:
     kwargs["language"] = "en"
-    # kwargs["dataset_tags"] = "glue"
     # kwargs["dataset_args"] = data_args.task_name
     # kwargs["dataset"] = f"GLUE {data_args.task_name.upper()}"
 

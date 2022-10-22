@@ -145,3 +145,20 @@ class ModelArguments:
         default="model_args;config",
         metadata={"help": "Name of arguments to pass to `__init__` function, separated by ;"},
     )
+    min_tau: float = field(
+        default=0.5,
+        metadata={"help": "Min tau value for temparature scheduler."},
+    )
+    exp_scheduler_hyper: float = field(
+        default=1e-5,
+        metadata={"help": "Hyper parameter `r` in exp scheduler `exp(-rt)`, where `t` is global training step."},
+    )
+    # explicability results
+    compute_sparsity: Optional[bool] = field(
+        default=None,
+        metadata={"help": "Whether to compute sparsity of input tokens."},
+    )
+    return_probs: Optional[bool] = field(
+        default=None,
+        metadata={"help": "Whether to return probs for retaining each token."},
+    )
