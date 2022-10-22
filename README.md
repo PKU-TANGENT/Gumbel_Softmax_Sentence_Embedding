@@ -61,18 +61,25 @@ $$F(X) = P(\xi \leq X) = P(-\log(-\log\varepsilon)\leq X)\\
 $$
 #### Deriving Gumbel-Max
 Denote $\log p_i-\log(-\log\varepsilon_i)$ as $\mathbb{G}(i)$.
+
 $$P(\argmax_i(\log p_i - \log(-\log\varepsilon_i))==j)\\
 =\prod_iP(\mathbb{G}(j)\geq\mathbb{G}(i))
 $$
+
 We have
+
 $$\mathbb{G}(j)\geq\mathbb{G}(i)\Leftrightarrow\ \log p_i-\log(-\log\varepsilon_i)\geq \log p_j-\log(-\log\varepsilon_j)\\
 \Leftrightarrow \frac{p_i}{-\log \varepsilon_i}\leq \frac{p_j}{-\log \varepsilon_j} \Leftrightarrow p_i\log\varepsilon_j\geq p_j\log\varepsilon_i\\
 \Leftrightarrow\varepsilon_i\leq\varepsilon_j^{\frac{p_i}{p_j}}
 $$
+
 $\Rightarrow$
+
 $$P(\mathbb{G}(j)\geq\mathbb{G}(i)|\varepsilon_j =\hat\varepsilon_j) = \hat\varepsilon_j^{\frac{p_i}{p_j}}
 $$
+
 $\Rightarrow$
+
 $$\prod_iP(\mathbb{G}(j)\geq\mathbb{G}(i)|\varepsilon_j =\hat\varepsilon_j) = \hat\varepsilon_j^{\frac{\sum_ip_i}{p_j}} = \hat\varepsilon_j^{\frac{1-p_j}{p_j}}$$
 $\Rightarrow$
 $$P(\mathbb{G}(j)\geq\mathbb{G}(i)) = \int_0^1 d\hat\varepsilon_j\ \hat\varepsilon_j^{\frac{1-p_j}{p_j}} = p_j\varepsilon^{\frac{1}{p_j}}|_{\varepsilon=0}^1 = p_j$$
