@@ -59,6 +59,7 @@ $$P(\argmax_i(\log p_i - \log(-\log\varepsilon_i))==j) = p_j$$
 Let us inspect the distribution of 
 $$\xi = -\log(-\log\varepsilon),\ \varepsilon\sim\mathcal{U}(0,1)$$
 Its density function can be derived as 
+
 $$F(X) = P(\xi \leq X) = P(-\log(-\log\varepsilon)\leq X)\\
 = P(-\log \varepsilon \geq \exp(-X)) = P(\varepsilon\leq\exp(-\exp(-X)))\\
 =\exp(-\exp(-X))
